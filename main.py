@@ -314,6 +314,13 @@ def main(args):
     all_pairs = np.array_split(all_pairs, args.total_chunks)
     all_pairs = list(map(tuple, all_pairs[args.chunk_id - 1]))
 
+    if not all_pairs:
+        print(
+            "No pending units to run. Existing results contain description.txt "
+            "or history.json for every requested unit."
+        )
+        return
+
     # Caches so we only init per-layer resources once
     net_cache = {}
     labels_cache = {}

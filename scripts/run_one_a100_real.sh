@@ -18,6 +18,55 @@ RESULTS_DIR="${RESULTS_DIR:-./results_one_a100_real}"
 PROMPTS_DIR="${PROMPTS_DIR:-./prompts/open}"
 EXEMPLARS_DIR="${EXEMPLARS_DIR:-./exemplars}"
 
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --agent|--AGENT)
+      AGENT="$2"
+      shift 2
+      ;;
+    --model|--MODEL)
+      MODEL="$2"
+      shift 2
+      ;;
+    --layer|--LAYER)
+      LAYER="$2"
+      shift 2
+      ;;
+    --unit|--UNIT)
+      UNIT="$2"
+      shift 2
+      ;;
+    --device|--DEVICE)
+      DEVICE="$2"
+      shift 2
+      ;;
+    --max-output-tokens|--MAX_OUTPUT_TOKENS)
+      MAX_OUTPUT_TOKENS="$2"
+      shift 2
+      ;;
+    --max-rounds|--MAX_ROUNDS)
+      MAX_ROUNDS="$2"
+      shift 2
+      ;;
+    --results-dir|--RESULTS_DIR)
+      RESULTS_DIR="$2"
+      shift 2
+      ;;
+    --prompts-dir|--PROMPTS_DIR)
+      PROMPTS_DIR="$2"
+      shift 2
+      ;;
+    --exemplars-dir|--EXEMPLARS_DIR)
+      EXEMPLARS_DIR="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
 export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-1}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
