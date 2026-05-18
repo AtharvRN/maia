@@ -20,13 +20,19 @@ class OpenAIAdapter:
         organization: str | None = None,
         base_url: str | None = None,
     ):
-        openai.api_key = api_key
-        if organization:
-            openai.organization = organization
-        if base_url:
-            openai.api_base = base_url
+        self.client = openai.OpenAI(
+            api_key=api_key,
+            organization=organization,
+            base_url=base_url,
+        )
         self.model = model
         self._allow_system = True  # OpenAI supports system
+
+    def _token_param_name(self) -> str:
+        """Newer OpenAI reasoning models use max_completion_tokens."""
+        if self.model.startswith(('gpt-5', 'o')):
+            return 'max_completion_tokens'
+        return 'max_tokens'
 
     def complete(
         self,
@@ -34,8 +40,8 @@ class OpenAIAdapter:
         max_output_tokens: int,
         **kwargs,
     ) -> str:
-        # Normalize but keep system messages for OpenAI
-        norm_messages = normalize_messages(messages, allow_system=self._allow_system)
+        # Normalize but keep system messages for OpenAI.
+        norm_messages = normalize_messages(messages, keep_system=self._allow_system)
         if not norm_messages:
             raise ValueError(
                 'After normalization, no valid user/assistant messages remain.'
@@ -43,11 +49,11 @@ class OpenAIAdapter:
         params: dict[str, Any] = {
             'model': self.model,
             'messages': norm_messages,
-            'max_tokens': max_output_tokens,
+            self._token_param_name(): max_output_tokens,
         }
         params.update(kwargs)
-        resp: dict[str, Any] = openai.ChatCompletion.create(**params)
-        return resp['choices'][0]['message']['content']
+        resp = self.client.chat.completions.create(**params)
+        return resp.choices[0].message.content
 
 
 class LocalAdapter(OpenAIAdapter):
@@ -84,11 +90,11 @@ class LocalAdapter(OpenAIAdapter):
         params: dict[str, Any] = {
             'model': self.model,
             'messages': norm_messages,
-            'max_tokens': max_output_tokens,
+            self._token_param_name(): max_output_tokens,
         }
         params.update(kwargs)
-        resp: dict[str, Any] = openai.ChatCompletion.create(**params)
-        return resp['choices'][0]['message']['content']
+        resp = self.client.chat.completions.create(**params)
+        return resp.choices[0].message.content
 
 
 # Anhtropic (Claude Sonnet 4)

@@ -178,11 +178,18 @@ def normalize_messages(
         else:
             merged.append({'role': m.get('role'), 'content': m.get('content')})
 
-    # 5) Enforce alternation: user -> assistant -> user -> ...
+    # 5) Enforce alternation: optional system prefix, then user -> assistant -> user -> ...
+    system_prefix = [
+        {'role': m.get('role'), 'content': m.get('content')}
+        for m in merged
+        if keep_system and m.get('role') == 'system'
+    ]
     alt: list[Message] = []
     expect = 'user'
     for m in merged:
         r = m.get('role')
+        if r == 'system':
+            continue
         if r not in ('user', 'assistant'):
             continue
         if r == expect:
@@ -193,7 +200,7 @@ def normalize_messages(
     if alt and alt[0]['role'] != 'user':
         alt = alt[1:]
 
-    return alt
+    return system_prefix + alt
 
 
 def _get_media_type(raw: bytes) -> str | None:

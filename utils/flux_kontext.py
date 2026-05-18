@@ -22,6 +22,7 @@ class FluxKontextDevConfig:
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     dtype: torch.dtype = torch.bfloat16
     max_sequence_length: int = 256
+    cpu_offload: bool = True
     text_encoder: T5EncoderModel | None = field(default=None, repr=False)
 
 
@@ -42,10 +43,15 @@ class FluxKontextDev:
         """Loads components, configures the pipeline, and applies optimizations."""
         # 1. Initialize Pipeline
         self.pipe = FluxKontextPipeline.from_pretrained(
-            'eramth/flux-kontext-4bit', torch_dtype=torch.bfloat16
+            self.config.pipe_id,
+            torch_dtype=self.config.dtype,
+            low_cpu_mem_usage=True,
         )
         # 2. Apply Optimizations and Configuration Tweaks
-        self.pipe.enable_model_cpu_offload(device=self.config.device)
+        if self.config.cpu_offload:
+            self.pipe.enable_model_cpu_offload(device=self.config.device)
+        else:
+            self.pipe.to(self.config.device)
         self.pipe.set_progress_bar_config(disable=True)
         self.pipe.transformer.to(memory_format=torch.channels_last)
         self.pipe.vae.to(memory_format=torch.channels_last)
@@ -96,7 +102,7 @@ class FluxKontextDev:
         guidance_scale: float = 2.5,
         num_inference_steps: int = 15,
         seed: int | None = None,
-        batch_size: int = 4,
+        batch_size: int = 1,
         **kwargs: object,
     ) -> list[Img]:
         """

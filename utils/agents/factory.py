@@ -34,12 +34,13 @@ def create_agent(model: str, **kwargs) -> Agent:
         adapter = OpenAIAdapter(
             api_key=kwargs.pop("api_key", os.getenv("OPENAI_API_KEY")),
             organization=kwargs.pop("organization", os.getenv("OPENAI_ORGANIZATION")),
-            model="gpt-4o",
+            base_url=kwargs.pop("base_url", None),
+            model=model,
         )
     elif provider == "anthropic":
         adapter = AnthropicAdapter(
             api_key=kwargs.pop("api_key", os.getenv("ANTHROPIC_API_KEY")),
-            model="claude-4-sonnet-20250514",
+            model=model,
         )
     elif provider == "local":
         adapter = LocalAdapter(
