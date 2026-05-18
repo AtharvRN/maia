@@ -1,1 +1,0 @@
-Describe the visual concept represented by this neuron using the available CIFAR-100 exemplar and neuron activation tools.

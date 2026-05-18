@@ -10,7 +10,6 @@ from tqdm import tqdm
 
 from maia_api import Synthetic_System, System, Tools
 from utils.agents.factory import create_agent
-from utils.CIFAR100Exemplars import CIFAR100Exemplars
 from utils.DatasetExemplars import DatasetExemplars
 from utils.ExperimentEnvironment import ExperimentEnvironment
 from utils.main_utils import *
@@ -18,17 +17,6 @@ from utils.SyntheticExemplars import SyntheticExemplars
 
 random.seed(0000)
 
-
-class UnavailableImageModel:
-    def __init__(self, name):
-        self.name = name
-
-    def __call__(self, *args, **kwargs):
-        raise RuntimeError(
-            f"{self.name} is disabled in this lightweight CIFAR demo. "
-            "Use dataset_exemplars, summarize_images, describe_images, and "
-            "system.call_neuron on provided images."
-        )
 
 # layers to explore for each model
 layers = {
@@ -120,31 +108,6 @@ def call_argparse():
         type=str,
         default='./exemplars',
         help='path to net disect top 15 exemplars images',
-    )
-    parser.add_argument(
-        '--exemplar_source',
-        type=str,
-        default='imagenet',
-        choices=['imagenet', 'cifar100'],
-        help='where to get top activating exemplars from',
-    )
-    parser.add_argument(
-        '--probe_size',
-        type=int,
-        default=1000,
-        help='number of CIFAR-100 probe images to scan when exemplar_source=cifar100',
-    )
-    parser.add_argument(
-        '--exemplar_batch_size',
-        type=int,
-        default=128,
-        help='batch size for CIFAR-100 exemplar computation',
-    )
-    parser.add_argument(
-        '--skip_image_models',
-        action='store_true',
-        default=False,
-        help='do not load FLUX text-to-image/image-editing models',
     )
     parser.add_argument(
         '--text2image_device',
@@ -325,23 +288,17 @@ def main(args):
     net_cache = {}
     labels_cache = {}
 
-    # Load text2image and image2image only when requested. These models are
-    # heavy and unnecessary for the small CIFAR exemplar demo.
-    if args.skip_image_models:
-        text2image_model = UnavailableImageModel('text2image')
-        img2img_model = UnavailableImageModel('image editing')
-    else:
-        from utils.flux import FluxDev
-        from utils.flux_kontext import FluxKontextDev
+    from utils.flux import FluxDev
+    from utils.flux_kontext import FluxKontextDev
 
-        text2image_kwargs = (
-            {'device': args.text2image_device} if args.text2image_device else {}
-        )
-        img2img_kwargs = {'device': args.img2img_device} if args.img2img_device else {}
-        text2image_kwargs['cpu_offload'] = not args.disable_cpu_offload
-        img2img_kwargs['cpu_offload'] = not args.disable_cpu_offload
-        text2image_model = FluxDev(**text2image_kwargs)
-        img2img_model = FluxKontextDev(**img2img_kwargs)
+    text2image_kwargs = (
+        {'device': args.text2image_device} if args.text2image_device else {}
+    )
+    img2img_kwargs = {'device': args.img2img_device} if args.img2img_device else {}
+    text2image_kwargs['cpu_offload'] = not args.disable_cpu_offload
+    img2img_kwargs['cpu_offload'] = not args.disable_cpu_offload
+    text2image_model = FluxDev(**text2image_kwargs)
+    img2img_model = FluxKontextDev(**img2img_kwargs)
     for layer, unit in tqdm(all_pairs, desc='Units overall'):
         unit = int(unit)
         if layer not in net_cache:
@@ -358,25 +315,13 @@ def main(args):
                 ) as f:
                     labels_cache[layer] = json.load(f)
             else:
-                if args.exemplar_source == 'cifar100':
-                    nd = CIFAR100Exemplars(
-                        path2save=args.path2save,
-                        model_name=args.model,
-                        layers=layer,
-                        units=unit_inx[layer],
-                        n_exemplars=15,
-                        probe_size=args.probe_size,
-                        batch_size=args.exemplar_batch_size,
-                        device=args.device,
-                    )
-                else:
-                    nd = DatasetExemplars(
-                        args.path2exemplars,
-                        args.path2save,
-                        args.model,
-                        layer,
-                        unit_inx[layer],
-                    )
+                nd = DatasetExemplars(
+                    args.path2exemplars,
+                    args.path2save,
+                    args.model,
+                    layer,
+                    unit_inx[layer],
+                )
             net_cache[layer] = nd
 
         net_dissect = net_cache[layer]
