@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Minimal setup for the real-neuron MAIA demo on a Kubernetes pod with:
-# - 1x A100 80 GB
+# Minimal setup for the real-neuron MAIA demo on a Kubernetes pod.
+# Tested hardware:
+# - 2x NVIDIA A100 80 GB GPUs
 # - about 32 GB system RAM
 #
 # This intentionally skips GroundingDINO/SAM and the synthetic-neuron stack.
 
-ENV_NAME="${ENV_NAME:-maia-one-a100}"
+ENV_NAME="${ENV_NAME:-maia-pod}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.10}"
 
 if ! command -v conda >/dev/null 2>&1; then
@@ -28,7 +29,7 @@ python -m pip install \
   torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
   --index-url https://download.pytorch.org/whl/cu121
 
-python -m pip install -r requirements-one-a100.txt
+python -m pip install -r requirements-pod.txt
 
 python - <<'PY'
 import torch

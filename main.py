@@ -47,7 +47,7 @@ def call_argparse():
     parser.add_argument(
         '--base_url',
         type=str,
-        default='http://torralba-3090-1:11434',
+        default=None,
         help='local maia server base_url (e.g. localhost:8000)',
     )
     parser.add_argument(
@@ -208,7 +208,7 @@ def interpretation_experiment(
         model=maia,
         max_attempts=5,
         max_output_tokens=max_output_tokens,
-        **({'base_url': base_url} if 'local' in maia else {}),
+        **({'base_url': base_url} if base_url else {}),
     )
     round_count = 0
     while True:

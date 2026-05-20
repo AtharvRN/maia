@@ -1,17 +1,19 @@
-# OpenMAIA Real-Neuron Demo on One A100 Pod
+# OpenMAIA Real-Neuron Demo on a Kubernetes Pod
 
 This fork keeps the original MAIA real-neuron flow, with a minimal setup path
-for a Kubernetes pod with one A100 GPU.
+for a Kubernetes pod.
+
+Tested hardware: 2x NVIDIA A100 80 GB GPUs and 32 GB system RAM. The intended
+layout is GPU 0 for the local VLM server and GPU 1 for MAIA tools.
 
 ## Setup
 
 ```bash
 git clone https://github.com/AtharvRN/maia.git
 cd maia
-git checkout one-a100-pod-demo
 
-bash scripts/setup_one_a100_pod.sh
-conda activate maia-one-a100
+bash scripts/setup_pod_env.sh
+conda activate maia-pod
 ```
 
 Set credentials:
@@ -24,7 +26,7 @@ export HF_TOKEN=...  # if needed for FLUX access
 ## Run
 
 ```bash
-bash scripts/run_one_a100_real.sh \
+bash scripts/run_pod_real.sh \
   --agent gpt-4o \
   --unit 1673
 ```
@@ -35,23 +37,23 @@ The script defaults to:
 MODEL=clip-RN50
 LAYER=layer4
 UNIT=1673
-RESULTS_DIR=./results_one_a100_real
+RESULTS_DIR=./results_pod_real
 ```
 
 Use a separate results directory for reruns:
 
 ```bash
-bash scripts/run_one_a100_real.sh \
+bash scripts/run_pod_real.sh \
   --agent gpt-4o \
   --unit 1673 \
-  --results-dir ./results_one_a100_real_rerun
+  --results-dir ./results_pod_real_rerun
 ```
 
 ## Pod Memory Behavior
 
 The runner passes `--disable_cpu_offload`, so FLUX and FLUX-Kontext stay on the
-A100 instead of moving large model blocks through host RAM. This is the intended
-mode for low-RAM pods with one 80 GB A100.
+GPU instead of moving large model blocks through host RAM. This is the intended
+mode for low-RAM pods.
 
 ## Outputs
 

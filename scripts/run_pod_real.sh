@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Real-neuron MAIA run for one A100 and low host RAM.
+# Real-neuron MAIA run for a low-host-RAM Kubernetes pod.
 # Required env vars:
 #   OPENAI_API_KEY
 # Optional:
@@ -14,7 +14,7 @@ AGENT="${AGENT:-gpt-4o}"
 DEVICE="${DEVICE:-0}"
 MAX_OUTPUT_TOKENS="${MAX_OUTPUT_TOKENS:-1024}"
 MAX_ROUNDS="${MAX_ROUNDS:-15}"
-RESULTS_DIR="${RESULTS_DIR:-./results_one_a100_real}"
+RESULTS_DIR="${RESULTS_DIR:-./results_pod_real}"
 PROMPTS_DIR="${PROMPTS_DIR:-./prompts/open}"
 EXEMPLARS_DIR="${EXEMPLARS_DIR:-./exemplars}"
 

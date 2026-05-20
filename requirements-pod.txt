@@ -1,4 +1,5 @@
-# Minimal runtime for the 1x A100 / 32 GB RAM real-neuron demo.
+# Minimal runtime for the Kubernetes pod real-neuron demo.
+# Tested hardware: 2x NVIDIA A100 80 GB GPUs and 32 GB system RAM.
 # Install PyTorch separately with the CUDA wheel index before this file.
 
 diffusers
