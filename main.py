@@ -12,15 +12,16 @@ from maia_api import Synthetic_System, System, Tools
 from utils.agents.factory import create_agent
 from utils.DatasetExemplars import DatasetExemplars
 from utils.ExperimentEnvironment import ExperimentEnvironment
-from utils.flux import FluxDev
-from utils.flux_kontext import FluxKontextDev
 from utils.main_utils import *
 from utils.SyntheticExemplars import SyntheticExemplars
 
 random.seed(0000)
 
+
 # layers to explore for each model
 layers = {
+    'resnet18': ['conv1', 'layer1', 'layer2', 'layer3', 'layer4'],
+    'resnet50': ['conv1', 'layer1', 'layer2', 'layer3', 'layer4'],
     'resnet152': ['conv1', 'layer1', 'layer2', 'layer3', 'layer4'],
     'clip-RN50': ['layer1', 'layer2', 'layer3', 'layer4'],
     'dino_vits8': [
@@ -46,7 +47,7 @@ def call_argparse():
     parser.add_argument(
         '--base_url',
         type=str,
-        default='http://torralba-3090-1:11434',
+        default=None,
         help='local maia server base_url (e.g. localhost:8000)',
     )
     parser.add_argument(
@@ -59,7 +60,7 @@ def call_argparse():
         '--model',
         type=str,
         default='resnet152',
-        choices=['resnet152', 'clip-RN50', 'dino_vits8', 'synthetic_neurons'],
+        choices=['resnet18', 'resnet50', 'resnet152', 'clip-RN50', 'dino_vits8', 'synthetic_neurons'],
         help='model to interp',
     )
     parser.add_argument(
@@ -107,6 +108,36 @@ def call_argparse():
         type=str,
         default='./exemplars',
         help='path to net disect top 15 exemplars images',
+    )
+    parser.add_argument(
+        '--text2image_device',
+        type=str,
+        default=None,
+        help='device for the FLUX text-to-image model, e.g. cuda:0',
+    )
+    parser.add_argument(
+        '--img2img_device',
+        type=str,
+        default=None,
+        help='device for the FLUX image-editing model, e.g. cuda:1',
+    )
+    parser.add_argument(
+        '--disable_cpu_offload',
+        action='store_true',
+        default=False,
+        help='keep FLUX pipelines on GPU instead of offloading model parts to CPU',
+    )
+    parser.add_argument(
+        '--max_output_tokens',
+        type=int,
+        default=1024,
+        help='maximum tokens requested from the MAIA language agent per round',
+    )
+    parser.add_argument(
+        '--max_rounds',
+        type=int,
+        default=25,
+        help='maximum experiment rounds before asking for a final description',
     )
     parser.add_argument(
         '--device', type=int, default=0, help='gpu decvice to use (e.g. 1)'
@@ -162,13 +193,22 @@ def is_completed(layer, unit):
 
 # maia experiment loop
 def interpretation_experiment(
-    maia, system, tools, experiment_env, path2save, debug=False, base_url=None
+    maia,
+    system,
+    tools,
+    experiment_env,
+    path2save,
+    debug=False,
+    base_url=None,
+    max_output_tokens=1024,
+    max_rounds=25,
+    prompt_path='./prompts/open/',
 ):
     agent = create_agent(
         model=maia,
         max_attempts=5,
-        max_output_tokens=4096,
-        **({'base_url': base_url} if 'local' in maia else {}),
+        max_output_tokens=max_output_tokens,
+        **({'base_url': base_url} if base_url else {}),
     )
     round_count = 0
     while True:
@@ -184,10 +224,18 @@ def interpretation_experiment(
         )  # generate the html file to visualize the experiment log
         if debug:  # print the dialogue to the screen
             print(maia_experiment)
+        if maia_experiment is None:
+            tools.update_experiment_log(
+                role='user',
+                type='text',
+                type_content='Agent returned no response after retries; stopping.',
+            )
+            tools.generate_html(path2save)
+            return
         if (
-            round_count > 25
+            round_count > max_rounds
         ):  # if the interpretation process exceeds 25 rounds, ask the agent to provide final description
-            overload_instructions(tools, prompt_path='./prompts/open/')
+            overload_instructions(tools, prompt_path=prompt_path)
         if '[DESCRIPTION]' in maia_experiment:
             return  # stop the experiment if the response contains the final description. "[DESCRIPTION]" is the stopping signal.
         try:
@@ -229,13 +277,28 @@ def main(args):
     all_pairs = np.array_split(all_pairs, args.total_chunks)
     all_pairs = list(map(tuple, all_pairs[args.chunk_id - 1]))
 
+    if not all_pairs:
+        print(
+            "No pending units to run. Existing results contain description.txt "
+            "or history.json for every requested unit."
+        )
+        return
+
     # Caches so we only init per-layer resources once
     net_cache = {}
     labels_cache = {}
 
-    # Load text2image and image2image
-    text2image_model = FluxDev()
-    img2img_model = FluxKontextDev()
+    from utils.flux import FluxDev
+    from utils.flux_kontext import FluxKontextDev
+
+    text2image_kwargs = (
+        {'device': args.text2image_device} if args.text2image_device else {}
+    )
+    img2img_kwargs = {'device': args.img2img_device} if args.img2img_device else {}
+    text2image_kwargs['cpu_offload'] = not args.disable_cpu_offload
+    img2img_kwargs['cpu_offload'] = not args.disable_cpu_offload
+    text2image_model = FluxDev(**text2image_kwargs)
+    img2img_model = FluxKontextDev(**img2img_kwargs)
     for layer, unit in tqdm(all_pairs, desc='Units overall'):
         unit = int(unit)
         if layer not in net_cache:
@@ -283,6 +346,7 @@ def main(args):
             path2save,
             args.device,
             net_dissect,
+            image2text_model_name=args.agent,
             text2image_model=text2image_model,
             img2img_model=img2img_model,
         )
@@ -300,6 +364,9 @@ def main(args):
                 path2save,
                 args.debug,
                 args.base_url,
+                args.max_output_tokens,
+                args.max_rounds,
+                args.path2prompts,
             )
             save_dialogue(tools.experiment_log, path2save)
         except Exception as e:

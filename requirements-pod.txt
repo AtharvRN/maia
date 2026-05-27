@@ -1,0 +1,35 @@
+# Minimal runtime for the Kubernetes pod real-neuron demo.
+# Tested hardware: 2x NVIDIA A100 80 GB GPUs and 32 GB system RAM.
+# Install PyTorch separately with the CUDA wheel index before this file.
+
+diffusers
+transformers
+accelerate
+bitsandbytes
+safetensors
+sentencepiece
+protobuf
+hf_transfer
+peft
+
+openai>=1.0
+anthropic
+tiktoken
+
+numpy==1.26.4
+pandas==2.2.2
+scipy==1.13.1
+scikit-image==0.25.2
+Pillow==10.4.0
+matplotlib
+statsmodels
+tabulate
+timm
+ftfy
+regex
+tqdm
+einops
+IPython
+
+git+https://github.com/openai/CLIP.git
+git+https://github.com/davidbau/baukit@9d51abd51ebf29769aecc38c4cbef459b731a36e

@@ -22,6 +22,7 @@ MAIA is a system that uses neural models to automate neural model understanding 
 ## Table of Contents
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Kubernetes Pod Setup](#kubernetes-pod-setup)
 - [Running MAIA (Core Usage)](#running-maia-core-usage)
 - [Synthetic Neurons](#synthetic-neurons)
 - [Using NetDissect](using-netdissect)
@@ -110,6 +111,136 @@ jupyter notebook
 Open `demo.ipynb` and follow the guided workflow.
 
 Note: For synthetic neurons, follow the setup in `./synthetic-neurons-dataset/README.md`.
+
+---
+
+## Kubernetes Pod Setup
+
+This is a repeatable setup for ephemeral Kubernetes pods.
+
+Tested hardware: 2x NVIDIA A100 80 GB GPUs and 32 GB system RAM. It uses:
+
+- GPU 0: local open-source VLM served with vLLM.
+- GPU 1: MAIA tools, target model, FLUX text-to-image, and FLUX-Kontext image editing.
+
+### 1. Clone or update the repo
+
+```bash
+cd /workspace
+git clone https://github.com/AtharvRN/maia.git
+cd /workspace/maia
+```
+
+If the repo already exists:
+
+```bash
+cd /workspace/maia
+git pull
+```
+
+### 2. Create the MAIA tools environment
+
+```bash
+source /opt/conda/etc/profile.d/conda.sh
+
+conda create -y -n maia python=3.10
+conda activate maia
+
+pip install --upgrade pip setuptools wheel
+
+pip install torch==2.5.1 torchvision==0.20.1 \
+  --index-url https://download.pytorch.org/whl/cu121
+
+pip install \
+  numpy pandas pillow matplotlib tqdm scipy scikit-learn scikit-image \
+  openai anthropic tiktoken ipython notebook \
+  diffusers transformers accelerate safetensors sentencepiece protobuf \
+  bitsandbytes huggingface_hub hf_transfer einops timm ftfy regex \
+  git+https://github.com/openai/CLIP.git \
+  git+https://github.com/davidbau/baukit.git
+```
+
+### 3. Create the vLLM serving environment
+
+```bash
+source /opt/conda/etc/profile.d/conda.sh
+
+conda create -y -n vllm-maia python=3.11
+conda activate vllm-maia
+
+pip install --upgrade pip setuptools wheel
+pip install vllm
+```
+
+### 4. Optional Hugging Face token
+
+Set this if you use gated models such as Gemma 3 or FLUX downloads that require authentication.
+
+```bash
+export HF_TOKEN="hf_..."
+export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
+```
+
+### 5. Start an officially supported local VLM on GPU 0
+
+The repo supports `mistral` and `gemma` shortcuts through `server/serve_model.sh`.
+`mistral` worked without gated Hugging Face access in our pod test.
+
+```bash
+cd /workspace/maia
+mkdir -p logs
+
+nohup env \
+  CUDA_VISIBLE_DEVICES=0 \
+  HF_HOME=/workspace/hf_home \
+  VLLM_WORKER_MULTIPROC_METHOD=spawn \
+  CC=/usr/bin/gcc \
+  VLLM_USE_FLASHINFER_SAMPLER=0 \
+  PATH=/opt/conda/envs/vllm-maia/bin:$PATH \
+  bash server/serve_model.sh --model mistral --gpus 1 \
+  > logs/vllm_mistral_small32_gpu0_official.log 2>&1 &
+
+echo $! > logs/vllm_mistral_small32_gpu0_official.pid
+```
+
+Watch startup:
+
+```bash
+tail -f /workspace/maia/logs/vllm_mistral_small32_gpu0_official.log
+```
+
+Smoke test the server:
+
+```bash
+curl -s http://127.0.0.1:11434/v1/models
+```
+
+### 6. Run MAIA on GPU 1
+
+With `CUDA_VISIBLE_DEVICES=1`, physical GPU 1 becomes local `cuda:0`, so `--device 0`,
+`--text2image_device cuda:0`, and `--img2img_device cuda:0` are correct.
+
+```bash
+cd /workspace/maia
+source /opt/conda/etc/profile.d/conda.sh
+conda activate maia
+
+CUDA_VISIBLE_DEVICES=1 python main.py \
+  --agent local-mistralai/Mistral-Small-3.2-24B \
+  --base_url http://127.0.0.1:11434/v1 \
+  --model clip-RN50 \
+  --unit_mode manual \
+  --units layer4=1673 \
+  --path2prompts ./prompts/open \
+  --path2exemplars ./exemplars \
+  --path2save ./results_mistral_small32_flux_gpu1 \
+  --device 0 \
+  --text2image_device cuda:0 \
+  --img2img_device cuda:0 \
+  --max_rounds 8 \
+  --max_output_tokens 1024 \
+  --debug
+```
 
 ---
 
@@ -360,4 +491,3 @@ Edit `FAMILIES` in `plots.py` to point to your result directories.
 * [Josep Lopez](https://yusepp.github.io/) added compatibility with open-source multimodal LLMs as agents.
 * [Christy Li](https://christykl.github.io/) and [Jake Touchet](https://www.linkedin.com/in/jake-touchet-557329297/) contributed to MAIA 2.0 release.
 * [Christy Li](https://christykl.github.io/) also cleaned up synthetic neurons code for release.
-

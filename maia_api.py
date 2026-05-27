@@ -15,7 +15,10 @@ from baukit import Trace
 from PIL import Image
 from torchvision import transforms
 
-from synthetic_neurons_dataset.synthetic_neurons import SAMNeuron
+try:
+    from synthetic_neurons_dataset.synthetic_neurons import SAMNeuron
+except Exception:
+    SAMNeuron = None
 
 # Local imports
 from utils.agents.factory import create_agent
@@ -27,6 +30,17 @@ from utils.api_utils import (
     str2image,
 )
 from utils.DatasetExemplars import DatasetExemplars
+
+
+def _resolve_device(device: str | int) -> torch.device:
+    if isinstance(device, torch.device):
+        return device
+    if isinstance(device, str):
+        if device == "cpu":
+            return torch.device("cpu")
+        if device.startswith("cuda"):
+            return torch.device(device if torch.cuda.is_available() else "cpu")
+    return torch.device(f"cuda:{device}" if torch.cuda.is_available() else "cpu")
 
 
 class System:
@@ -75,9 +89,7 @@ class System:
         """
         self.neuron_num = neuron_num
         self.layer = layer
-        self.device = torch.device(
-            f"cuda:{device}" if torch.cuda.is_available() else "cpu"
-        )
+        self.device = _resolve_device(device)
         self.model_name = model_name
         self.preprocess = None
         if "dino" in model_name or "resnet" in model_name:
@@ -111,6 +123,12 @@ class System:
         if model_name == "resnet152":
             resnet152 = models.resnet152(weights="IMAGENET1K_V1").to(self.device)
             model = resnet152.eval()
+        elif model_name == "resnet50":
+            resnet50 = models.resnet50(weights="IMAGENET1K_V2").to(self.device)
+            model = resnet50.eval()
+        elif model_name == "resnet18":
+            resnet18 = models.resnet18(weights="IMAGENET1K_V1").to(self.device)
+            model = resnet18.eval()
         elif model_name == "dino_vits8":
             model = (
                 torch.hub.load("facebookresearch/dino:main", "dino_vits8")
@@ -119,9 +137,7 @@ class System:
             )
         elif model_name == "clip-RN50":
             name = "RN50"
-            full_model, preprocess = clip.load(
-                name, download_root="/data/scratch/yusepp/.cache/clip"
-            )
+            full_model, preprocess = clip.load(name)
             model = full_model.visual.to(self.device).eval()
             self.preprocess = preprocess
         elif model_name == "clip-ViT-B32":
@@ -351,9 +367,13 @@ class Synthetic_System:
     def __init__(
         self, neuron_num: int, neuron_labels: str, neuron_mode: str, device: str
     ):
-        self.device = torch.device(
-            f"cuda:{device}" if torch.cuda.is_available() else "cpu"
-        )
+        self.device = _resolve_device(device)
+        if SAMNeuron is None:
+            raise ImportError(
+                "Synthetic neurons require optional GroundingDINO/SAM dependencies. "
+                "Use a real model such as clip-RN50/resnet50, or install the "
+                "synthetic-neuron optional dependencies."
+            )
         self.neuron_num = neuron_num
         self.neuron_labels = neuron_labels
         self.neuron = SAMNeuron(neuron_labels, neuron_mode, device=self.device)
@@ -484,9 +504,7 @@ class Tools:
         img2img_model: any
             The loaded image-to-image model.
         """
-        self.device = torch.device(
-            f"cuda:{device}" if torch.cuda.is_available() else "cpu"
-        )
+        self.device = _resolve_device(device)
         self.image2text_model_name = image2text_model_name
         self.text2image_model = text2image_model
         self.img2img_model = img2img_model
